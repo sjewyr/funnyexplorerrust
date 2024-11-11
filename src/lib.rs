@@ -18,7 +18,7 @@ struct MyState {
     reversed: bool,
     paths: Vec<String>,
     opened: Opened,
-    last_oper: bool
+    last_oper: bool,
 }
 
 #[derive(PartialEq, Eq, Clone)]
@@ -64,7 +64,7 @@ impl MyState {
             selected: 0,
             reversed: false,
             opened: Opened::List,
-            last_oper: true
+            last_oper: true,
         };
         res.update_dir(&cur_path)?;
         res.selected = 1;
@@ -140,9 +140,12 @@ impl MyState {
             }
         });
     }
-    fn move_file(&mut self, file: &str) -> Result<(), std::io::Error>{
-        if Path::new(file).file_name().is_none(){
-            return Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, ""));
+    fn move_file(&mut self, file: &str) -> Result<(), std::io::Error> {
+        if Path::new(file).file_name().is_none() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "",
+            ));
         }
         fs::rename(
             file,
@@ -152,8 +155,11 @@ impl MyState {
         Ok(())
     }
     fn copy_file(&mut self, file: &str) -> Result<(), std::io::Error> {
-        if Path::new(file).file_name().is_none(){
-            return Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, ""));
+        if Path::new(file).file_name().is_none() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "",
+            ));
         }
         if PathBuf::from(file).is_file() {
             fs::copy(
@@ -169,16 +175,17 @@ impl MyState {
         self.refresh();
         Ok(())
     }
-    fn get_current_file(&self) -> String{
-        self.ls[self.selected][self.list_states[self.selected].selected().unwrap()].name.clone()
+    fn get_current_file(&self) -> String {
+        self.ls[self.selected][self.list_states[self.selected].selected().unwrap()]
+            .name
+            .clone()
     }
 
-    fn del_file(&mut self) -> Result<(), std::io::Error>{
+    fn del_file(&mut self) -> Result<(), std::io::Error> {
         let file = Path::new(&self.paths[self.selected]).join(self.get_current_file());
-        if file.is_file(){
+        if file.is_file() {
             fs::remove_file(file)?;
-        }
-        else{
+        } else {
             fs::remove_dir_all(file)?
         }
         Ok(())
@@ -249,7 +256,6 @@ pub fn run(cur_path: String) -> Result<(), &'static str> {
     let mut to_move: String = "".to_string();
     let mut my_state = MyState::build(cur_path.clone())?;
     loop {
-        
         term.draw(|frame| draw(frame, &mut my_state)).unwrap();
         if let Event::Key(key) = event::read().unwrap() {
             if key.kind == KeyEventKind::Press {
@@ -267,7 +273,10 @@ pub fn run(cur_path: String) -> Result<(), &'static str> {
                                 (file.is_dir, file.name.clone())
                             };
                             if is_dir {
-                                my_state.update_dir(&name).inspect_err(|_| my_state.last_oper=false).ok();
+                                my_state
+                                    .update_dir(&name)
+                                    .inspect_err(|_| my_state.last_oper = false)
+                                    .ok();
                             }
                         }
                         KeyCode::Left => {
@@ -316,7 +325,12 @@ pub fn run(cur_path: String) -> Result<(), &'static str> {
                                 .to_string();
                             my_state.opened = Opened::Copy;
                         }
-                        KeyCode::Char('d') => {my_state.del_file().inspect_err(|_| my_state.last_oper=false).ok();},
+                        KeyCode::Char('d') => {
+                            my_state
+                                .del_file()
+                                .inspect_err(|_| my_state.last_oper = false)
+                                .ok();
+                        }
                         _ => {}
                     },
 
@@ -328,7 +342,10 @@ pub fn run(cur_path: String) -> Result<(), &'static str> {
                             my_state.select_next();
                         }
                         KeyCode::Enter => {
-                            my_state.copy_file(&to_move).inspect_err(|_| my_state.last_oper=false).ok();
+                            my_state
+                                .copy_file(&to_move)
+                                .inspect_err(|_| my_state.last_oper = false)
+                                .ok();
                             my_state.opened = Opened::List;
                         }
                         KeyCode::Esc => {
@@ -345,7 +362,10 @@ pub fn run(cur_path: String) -> Result<(), &'static str> {
                             my_state.select_next();
                         }
                         KeyCode::Enter => {
-                            my_state.move_file(&to_move).inspect_err(|_| my_state.last_oper=false).ok();
+                            my_state
+                                .move_file(&to_move)
+                                .inspect_err(|_| my_state.last_oper = false)
+                                .ok();
                             my_state.opened = Opened::List;
                         }
                         KeyCode::Esc => {
@@ -372,10 +392,9 @@ fn draw(frame: &mut ratatui::Frame, state: &mut MyState) {
 
     state.list_states.iter().enumerate().for_each(|(idx, _)| {
         if state.selected == idx {
-            if state.last_oper{
+            if state.last_oper {
                 styles.push(Style::new().green());
-            }
-            else{
+            } else {
                 styles.push(Style::new().red());
             }
         } else {

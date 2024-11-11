@@ -12,8 +12,10 @@ fn main() {
         .to_str()
         .unwrap()
         .to_string();
-    run(cur_path).inspect_err(|err| {
-        eprintln!("{err}");
-        process::exit(1);
-    }).ok();
+    run(cur_path)
+        .inspect_err(|err| {
+            eprintln!("{err}");
+            process::exit(1);
+        })
+        .ok();
 }
