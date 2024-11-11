@@ -1,5 +1,7 @@
 use std::{
-    cell::RefCell, env, fs::{self}, path::Path, rc::Rc
+    env,
+    fs::{self},
+    path::Path,
 };
 
 use ratatui::{
@@ -11,15 +13,10 @@ use ratatui::{
 };
 
 struct MyState {
-    ls: Rc<RefCell<Vec<MyFile>>>,
-    ls2: Rc<RefCell<Vec<MyFile>>>,
-    list_state: Rc<RefCell<ListState>>,
-    list2_state: Rc<RefCell<ListState>>,
-    selected_list_state: Rc<RefCell<ListState>>,
-    selected_list: Rc<RefCell<Vec<MyFile>>>,
-    path: Rc<RefCell<String>>,
-    path2: Rc<RefCell<String>>,
-    selected_path:Rc<RefCell<String>>,
+    ls: Vec<Vec<MyFile>>,
+    list_states: Vec<ListState>,
+    selected: usize,
+    paths: Vec<String>,
 }
 
 #[derive(PartialEq, Eq)]
@@ -41,41 +38,36 @@ impl PartialOrd for MyFile {
 }
 impl MyState {
     fn new(cur_path: String) -> Self {
-        let ls = Rc::new(RefCell::new(Vec::new()));
-        let ls2 = Rc::new(RefCell::new(Vec::new()));
-        let list_state = Rc::new(RefCell::new(ListState::default().with_selected(Some(0))));
-        let list2_state = Rc::new(RefCell::new(ListState::default().with_selected(Some(0))));
-        let path2 = Rc::new(RefCell::new(String::new()));
-        let path = Rc::new(RefCell::new(String::new()));
-        let selected_path = Rc::clone(&path2);
+        let mut ls = Vec::new();
+        ls.push(Vec::new());
+        ls.push(Vec::new());
+        let mut list_states = Vec::new();
+        list_states.push(ListState::default());
+        list_states.push(ListState::default());
+        let mut paths = Vec::new();
+        paths.push(String::new());
+        paths.push(String::new());
+
         let mut res = MyState {
-            ls: Rc::clone(&ls),
-            ls2: Rc::clone(&ls2),
-            list2_state: Rc::clone(&list2_state),
-            selected_list: Rc::clone(&ls2),
-            selected_list_state: Rc::clone(&list2_state),
-            list_state: Rc::clone(&list_state),
-            path,
-            selected_path,
-            path2
+            ls,
+            list_states,
+            paths,
+            selected: 0,
         };
         res.update_dir(&cur_path);
-        res.selected_list = Rc::clone(&res.ls);
-        res.selected_list_state = Rc::clone(&res.list_state);
-        res.selected_path = res.path.clone();
+        res.selected = 1;
         res.update_dir(&cur_path);
         res
     }
     fn update_dir(&mut self, new_path: &str) {
-        let ns = Path::new((*self.selected_path).borrow_mut().as_str())
-        .join(new_path)
-        .canonicalize()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string();
-        (*(self.selected_path).borrow_mut()) = ns;
-        let mut ls: Vec<MyFile> = fs::read_dir((*self.selected_path).borrow().as_str())
+        let ns = Path::new(&self.paths[self.selected])
+            .join(new_path)
+            .canonicalize()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
+        let mut ls: Vec<MyFile> = fs::read_dir(&ns)
             .unwrap()
             .map(|file| MyFile {
                 name: file
@@ -93,8 +85,33 @@ impl MyState {
             is_dir: true,
         });
         ls.sort();
-        *(*self.selected_list).borrow_mut() = ls;
-        (*self.selected_list_state).borrow_mut().select_first();
+        self.ls[self.selected] = ls;
+        self.list_states[self.selected].select_first();
+        self.paths[self.selected] = ns;
+    }
+
+    fn select_next(&mut self) {
+        self.selected = (self.selected + 1).min(self.list_states.len() - 1);
+    }
+    fn select_previous(&mut self) {
+        self.selected = (self.selected + 1).max(2) - 2;
+    }
+
+    fn add_list(&mut self, idx: usize){
+        let path = self.paths[self.selected].clone();
+        self.paths.insert(idx, path.clone());
+        self.list_states.insert(idx, ListState::default().with_selected(Some(0)));
+        self.ls.insert(idx,Vec::new());
+        self.selected = idx;
+        self.update_dir(&path);
+    }
+    fn del_list(&mut self, idx: usize){
+        if self.ls.len() > 1{
+        self.paths.remove(idx);
+        self.list_states.remove(idx);
+        self.ls.remove(idx);
+        self.select_previous();
+        }
     }
 }
 
@@ -114,14 +131,12 @@ pub fn run() {
             if key.kind == KeyEventKind::Press {
                 match key.code {
                     KeyCode::Esc => break,
-                    KeyCode::Up => (*my_state.selected_list_state)
-                        .borrow_mut()
-                        .select_previous(),
-                    KeyCode::Down => (*my_state.selected_list_state).borrow_mut().select_next(),
+                    KeyCode::Up => my_state.list_states[my_state.selected].select_previous(),
+                    KeyCode::Down => my_state.list_states[my_state.selected].select_next(),
                     KeyCode::Enter => {
                         let (is_dir, name) = {
-                            let file: &MyFile = &(*my_state.selected_list).borrow()
-                                [(*my_state.selected_list_state).borrow().selected().unwrap()];
+                            let file: &MyFile = &my_state.ls[my_state.selected]
+                                [my_state.list_states[my_state.selected].selected().unwrap()];
                             (file.is_dir, file.name.clone())
                         };
                         if is_dir {
@@ -129,14 +144,16 @@ pub fn run() {
                         }
                     }
                     KeyCode::Left => {
-                        my_state.selected_list_state = Rc::clone(&my_state.list_state);
-                        my_state.selected_list = Rc::clone(&my_state.ls);
-                        my_state.selected_path = my_state.path.clone();
+                        my_state.select_previous();
                     }
                     KeyCode::Right => {
-                        my_state.selected_list_state = Rc::clone(&my_state.list2_state);
-                        my_state.selected_list = Rc::clone(&my_state.ls2);
-                        my_state.selected_path = my_state.path2.clone();
+                        my_state.select_next();
+                    }
+                    KeyCode::Char('v') => {
+                        my_state.add_list(my_state.selected);
+                    }
+                    KeyCode::Backspace => {
+                        my_state.del_list(my_state.selected);
                     }
                     _ => {}
                 }
@@ -147,44 +164,47 @@ pub fn run() {
 }
 
 fn draw(frame: &mut ratatui::Frame, state: &mut MyState) {
-    let ns1 = state.path.borrow();
-    let ns2 = state.path2.borrow();
-    let text = Text::raw(ns1.as_str());
-    let text2 = Text::raw(ns2.as_str());
-    let mut style1 = Style::new();
-    let mut style2 = Style::new();
-    if Rc::ptr_eq(&state.selected_list_state, &state.list2_state) {
-        style2 = style2.yellow();
-    } else {
-        style1 = style1.yellow();
-    }
+    let mut paths: Vec<Text> = Vec::new();
+    state
+        .paths
+        .iter()
+        .for_each(|path| paths.push(Text::raw(path)));
+    let mut styles: Vec<Style> = Vec::new();
+    
+    state.list_states.iter().enumerate().for_each(|(idx, _)| {
+        if state.selected == idx {
+            styles.push(Style::new().yellow());
+        }
+        else{
+            styles.push(Style::new())
+        }
+    });
+    let mut lists = Vec::new();
+    state.ls.iter().enumerate().for_each(|(idx, ls)| {
+        let list = List::new(ls)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Files List")
+                    .border_style(styles[idx]),
+            )
+            .highlight_style(Style::new().reversed());
+        lists.push(list);
+    });
 
-    let list = List::new((*state.ls).borrow().iter())
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("First Files List")
-                .border_style(style1),
-        )
-        .highlight_style(Style::new().reversed());
+    let mut constraints = Vec::new();
+    let len = lists.len();
+    let layout_help = Layout::vertical([Constraint::Percentage(99), Constraint::Fill(1)]);
+    lists.iter().for_each(|_| constraints.push(Constraint::Ratio(1, len as u32)));
+    let laylists = Layout::horizontal(constraints);
+    let lay = Layout::vertical([Constraint::Percentage(95), Constraint::Fill(1)]);
+    let main_rect = layout_help.split(frame.area());
+    let rect = laylists.split(main_rect[0]);
+    let final_layout = lists.iter().enumerate().map(|(idx, _)| lay.split(rect[idx]));
 
-    let list2 = List::new((*state.ls2).borrow().iter())
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Second Files List")
-                .border_style(style2),
-        )
-        .highlight_style(Style::new().reversed());
-
-    let laylists = Layout::horizontal([Constraint::Fill(1); 2]);
-    let lay = Layout::vertical([Constraint::Percentage(90), Constraint::Fill(1)]);
-    let rect = laylists.split(frame.area());
-    let listsrect = lay.split(rect[0]);
-    let listsrect2 = lay.split(rect[1]);
-
-    frame.render_stateful_widget(list, listsrect[0], &mut (*state.list_state).borrow_mut());
-    frame.render_stateful_widget(list2, listsrect2[0], &mut (*state.list2_state).borrow_mut());
-    frame.render_widget(text, listsrect[1]);
-    frame.render_widget(text2, listsrect2[1]);
+    final_layout.enumerate().for_each(|(idx, lay)| {
+        frame.render_widget(&paths[idx], lay[1]);
+        frame.render_stateful_widget(&lists[idx], lay[0], &mut state.list_states[idx]);
+    });
+    frame.render_widget(Text::raw("V: Add explorer; BackSpace: Del explorer; <> Navigate"), main_rect[1]);
 }
