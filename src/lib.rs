@@ -188,6 +188,7 @@ impl MyState {
         } else {
             fs::remove_dir_all(file)?
         }
+        self.refresh();
         Ok(())
     }
 
@@ -325,7 +326,7 @@ pub fn run(cur_path: String) -> Result<(), &'static str> {
                                 .to_string();
                             my_state.opened = Opened::Copy;
                         }
-                        KeyCode::Char('d') => {
+                        KeyCode::Char('D') => {
                             if key.modifiers.contains(KeyModifiers::SHIFT) {
                                 my_state
                                     .del_file()
