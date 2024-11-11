@@ -4,7 +4,7 @@ use std::{
 };
 
 use ratatui::{
-    crossterm::event::{self, Event, KeyCode, KeyEventKind},
+    crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
     layout::{Constraint, Layout},
     style::{Style, Stylize},
     text::Text,
@@ -326,10 +326,12 @@ pub fn run(cur_path: String) -> Result<(), &'static str> {
                             my_state.opened = Opened::Copy;
                         }
                         KeyCode::Char('d') => {
-                            my_state
-                                .del_file()
-                                .inspect_err(|_| my_state.last_oper = false)
-                                .ok();
+                            if key.modifiers.contains(KeyModifiers::SHIFT) {
+                                my_state
+                                    .del_file()
+                                    .inspect_err(|_| my_state.last_oper = false)
+                                    .ok();
+                            }
                         }
                         _ => {}
                     },
