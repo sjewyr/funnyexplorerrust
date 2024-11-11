@@ -182,7 +182,7 @@ impl MyState {
     }
 
     fn del_file(&mut self) -> Result<(), std::io::Error> {
-        let file = Path::new(&self.paths[self.selected]).join(self.get_current_file());
+        let file = Path::new(&self.paths[self.selected]).join(&self.get_current_file());
         if file.is_file() {
             fs::remove_file(file)?;
         } else {
@@ -201,7 +201,6 @@ impl MyState {
             self.update_dir(&path).ok();
         }
         self.selected = i;
-        self.refresh();
     }
 }
 
@@ -441,7 +440,7 @@ fn draw(frame: &mut ratatui::Frame, state: &mut MyState) {
         frame.render_stateful_widget(&lists[idx], lay[0], &mut state.list_states[idx]);
     });
     frame.render_widget(
-        Text::raw("V: Add explorer; BackSpace: Del explorer; <> Navigate; ESC: exit; shift+d: Delete file (w/o confirmation!! be careful)"),
+        Text::raw("V: Add explorer; BackSpace: Del explorer; <> Navigate; TAB: change sorting; ESC: exit; shift+d: Delete file (w/o confirmation!! be careful)"),
         main_rect[1],
     );
     frame.render_widget(

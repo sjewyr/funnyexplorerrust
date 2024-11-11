@@ -1,3 +1,0 @@
-   Compiling funnyexplorerrust v0.1.0 (/home/sjewyr/funnyexplorerrust)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.66s
-     Running `target/debug/funnyexplorerrust`
