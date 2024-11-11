@@ -1,5 +1,4 @@
 use std::{
-    env,
     fs::{self},
     path::Path,
 };
@@ -37,7 +36,7 @@ impl PartialOrd for MyFile {
     }
 }
 impl MyState {
-    fn new(cur_path: String) -> Self {
+    fn build(cur_path: String) -> Result<Self, &'static str> {
         let mut ls = Vec::new();
         ls.push(Vec::new());
         ls.push(Vec::new());
@@ -54,12 +53,12 @@ impl MyState {
             paths,
             selected: 0,
         };
-        res.update_dir(&cur_path);
+        res.update_dir(&cur_path)?;
         res.selected = 1;
-        res.update_dir(&cur_path);
-        res
+        res.update_dir(&cur_path)?;
+        Ok(res)
     }
-    fn update_dir(&mut self, new_path: &str) {
+    fn update_dir(&mut self, new_path: &str) -> Result<(), &'static str>{
         let ns = Path::new(&self.paths[self.selected])
             .join(new_path)
             .canonicalize()
@@ -68,7 +67,7 @@ impl MyState {
             .unwrap()
             .to_string();
         let mut ls: Vec<MyFile> = fs::read_dir(&ns)
-            .unwrap()
+            .map_err(|_| "Error at reading dir")?
             .map(|file| MyFile {
                 name: file
                     .as_ref()
@@ -88,6 +87,7 @@ impl MyState {
         self.ls[self.selected] = ls;
         self.list_states[self.selected].select_first();
         self.paths[self.selected] = ns;
+        Ok(())
     }
 
     fn select_next(&mut self) {
@@ -103,7 +103,7 @@ impl MyState {
         self.list_states.insert(idx, ListState::default().with_selected(Some(0)));
         self.ls.insert(idx,Vec::new());
         self.selected = idx;
-        self.update_dir(&path);
+        self.update_dir(&path).ok();
     }
     fn del_list(&mut self, idx: usize){
         if self.ls.len() > 1{
@@ -121,10 +121,10 @@ impl<'a> Into<ListItem<'a>> for &MyFile {
     }
 }
 
-pub fn run() {
+pub fn run(cur_path: String) -> Result<(), &'static str>{
     let mut term = ratatui::init();
-    let cur_path = env::current_dir().unwrap().to_str().unwrap().to_string();
-    let mut my_state = MyState::new(cur_path);
+    
+    let mut my_state = MyState::build(cur_path.clone())?;
     loop {
         term.draw(|frame| draw(frame, &mut my_state)).unwrap();
         if let Event::Key(key) = event::read().unwrap() {
@@ -140,7 +140,7 @@ pub fn run() {
                             (file.is_dir, file.name.clone())
                         };
                         if is_dir {
-                            my_state.update_dir(&name);
+                            my_state.update_dir(&name).ok();
                         }
                     }
                     KeyCode::Left => {
@@ -161,6 +161,7 @@ pub fn run() {
         }
     }
     ratatui::restore();
+    Ok(())
 }
 
 fn draw(frame: &mut ratatui::Frame, state: &mut MyState) {
@@ -206,5 +207,5 @@ fn draw(frame: &mut ratatui::Frame, state: &mut MyState) {
         frame.render_widget(&paths[idx], lay[1]);
         frame.render_stateful_widget(&lists[idx], lay[0], &mut state.list_states[idx]);
     });
-    frame.render_widget(Text::raw("V: Add explorer; BackSpace: Del explorer; <> Navigate"), main_rect[1]);
+    frame.render_widget(Text::raw("V: Add explorer; BackSpace: Del explorer; <> Navigate; ESC: exit"), main_rect[1]);
 }
